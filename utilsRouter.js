@@ -3,6 +3,8 @@ const router = express.Router();
 const {detectLanguage, translateText}=require("./translateFunctions.js");
 const {LANGUAGE_ISO_CODE} = require("./dictionaries.js")
 const {detectLabels} =require("./imageRecognitionFunctions.js");
+const connection=require('./database');
+const mysql=require('mysql');
 
 router.get("/detect",async (req,res) => {
     const {text} =req.body;
@@ -17,12 +19,23 @@ router.get("/detect",async (req,res) => {
 
 });
 
-
+router.get("/translation",(req,res)=>{
+    connection.query("SELECT * FROM texts",(err,results)=>{
+        if(err){
+            console.log(err);
+            return res.send(err);
+        }
+        return res.json({
+            results
+        })
+    });
+    });
 
 router.get("/translate",async (req,res) => {
-    const {text, language} =req.body;
+    const {messageContent, language} =req.body;
 
-    if(!text || !language){
+    if(!messageContent || !language){
+      
         return res.status(400).send("Missing Parameters");
     }
 
@@ -30,7 +43,7 @@ router.get("/translate",async (req,res) => {
         return res.status(400).send("Invalid Language");
     }
 
-    const translatedText = await translateText(text, LANGUAGE_ISO_CODE[language]);
+    const translatedText = await translateText(messageContent, LANGUAGE_ISO_CODE[language]);
     return res.json({
         translateText: translatedText[0]
 })
@@ -49,6 +62,38 @@ router.get("/labels", async (req,res) => {
         labels
     })
 })
+
+
+router.post("/translateStore", async (req,res) => {
+    const {messageContent, language} =req.body;
+
+    if(!messageContent || !language){
+      
+        return res.status(400).send("Missing Parameters");
+    }
+
+    if(!LANGUAGE_ISO_CODE[language]){
+        return res.status(400).send("Invalid Language");
+    }
+
+    const translatedText = await translateText(messageContent, LANGUAGE_ISO_CODE[language]);
+    console.log (translatedText);
+
+    connection.query(`insert into texts(language,translatedText,originalText) values(${mysql.escape(language)},${mysql.escape(translatedText[0])},${mysql.escape(messageContent)})`,(err,results)=>{
+        if(err){
+            console.log(err);
+            return res.send(err);
+        }
+        return res.json({
+            results,
+        })
+    });
+    
+    // return res.json({
+    //     translateText: translatedText[0]
+// })
+
+});
 
 
 module.exports=router;
